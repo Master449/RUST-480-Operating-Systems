@@ -1,3 +1,7 @@
+use std::env;
+use std::fs::{read, read_to_string};
+use std::process::exit;
+
 struct Process {
     name: String,
     id: i8,
@@ -23,7 +27,7 @@ impl Process {
 
         print!("History:       ");
         for it in self.history.clone() {
-            print!("({}, {})", it.0, it.1);
+            print!("({}, {}) ", it.0, it.1);
         }
         print!("\n");
 
@@ -40,23 +44,65 @@ impl Process {
 }
 
 fn main() {
-    println!("Hello, world!");
+    // Get commandline arguments
+    let args: Vec<String> = env::args().collect();
 
-    let proc = Process {
-        name: String::from("STARWAR"),
-        id: 0,
-        arrival_time: 0,
-        history: vec![('C', 4), ('I', 20), ('O', 14)],
-        history_index: 0,
-        cpu_timer: 0,
-        cpu_total: 120,
-        cpu_burst_count: 27,
-        io_timer: (20, 45),
-        io_total: (4, 6),
-        io_burst_count: (2, 1),
-        end_time: 50,
-        wait_time: 2,
-    };
+    if args.len() < 2 {
+        println!("Need an input file.");
+        exit(1)
+    }
 
-    proc.debug_info();
+    // Get lines of input
+    let input: Vec<String> = read_to_string(&args[1])
+        .unwrap()
+        .lines()
+        .map(String::from)
+        .collect();
+
+    let mut i = 0;
+
+    while i < input.len() {
+        if input[i].contains("STOPHERE") {
+            break;
+        }
+
+        let name_and_id: Vec<String> = input[i].split(' ').map(String::from).collect();
+        i += 1;
+        let history_strings: Vec<String> = input[i].split(' ').map(String::from).collect();
+
+        let mut proc_history: Vec<(char, i32)> = Vec::new();
+        let mut iter = history_strings.iter();
+
+        while let Some(char_str) = iter.next() {
+            let ch = char_str.chars().next().unwrap();
+
+            if ch == 'N' {
+                break;
+            }
+
+            println!("Current char is {}", ch);
+            if let Some(num_str) = iter.next() {
+                println!("Current int is {}", num_str);
+                let num = num_str.parse::<i32>().unwrap();
+                proc_history.push((ch, num));
+            }
+        }
+
+        let proc = Process {
+            name: name_and_id[0].clone(),
+            id: (i as i8),
+            arrival_time: name_and_id[1].parse().unwrap(),
+            history: proc_history,
+            history_index: 0,
+            cpu_timer: 0,
+            cpu_total: 0,
+            cpu_burst_count: 0,
+            io_timer: (0, 0),
+            io_total: (0, 0),
+            io_burst_count: (0, 0),
+            end_time: 0,
+            wait_time: 0,
+        };
+        proc.debug_info();
+    }
 }
