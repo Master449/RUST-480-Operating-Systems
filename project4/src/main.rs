@@ -6,7 +6,7 @@ struct Process {
     name: String,
     id: i8,
     arrival_time: i32,
-    history: Vec<(char, i32)>,
+    history: Vec<(String, i32)>,
     history_index: i8,
     cpu_timer: i32,
     cpu_total: i32,
@@ -43,7 +43,10 @@ impl Process {
     }
 }
 
+#[rustfmt::skip]
 fn main() {
+    const DEBUG_FLAG: bool = true;
+
     // Get commandline arguments
     let args: Vec<String> = env::args().collect();
 
@@ -51,6 +54,8 @@ fn main() {
         println!("Need an input file.");
         exit(1)
     }
+
+    if DEBUG_FLAG { println!("PASSED ARGS"); }
 
     // Get lines of input
     let input: Vec<String> = read_to_string(&args[1])
@@ -63,36 +68,62 @@ fn main() {
 
     while i < input.len() {
         if input[i].contains("STOPHERE") {
+            if DEBUG_FLAG { println!("STOPHERE ENCOUNTERED"); }
             break;
         }
+        if DEBUG_FLAG { println!("EXITED STOPHERE"); }
 
-        let name_and_id: Vec<String> = input[i].split(' ').map(String::from).collect();
+        // First line is program name and id
+        let input_name_and_id: Vec<String> = input[i].split(' ').map(String::from).collect();
+        let name_and_id: Vec<String> = input_name_and_id.into_iter().filter(|s| !s.is_empty()).collect();
+
+        // Increment because
         i += 1;
+
+        // Second line is program history
         let history_strings: Vec<String> = input[i].split(' ').map(String::from).collect();
+        let history: Vec<String> = history_strings.into_iter().filter(|s| !s.is_empty()).collect();
 
-        let mut proc_history: Vec<(char, i32)> = Vec::new();
-        let mut iter = history_strings.iter();
+        if DEBUG_FLAG { println!("STARTING PROCESS HISTORY STRING PROCESSING"); }
 
-        while let Some(char_str) = iter.next() {
-            let ch = char_str.chars().next().unwrap();
+        // tmp variables for processing the instructions to
+        // Vec<(Instruction, Burst) ...> format
+        let mut instruction = "";
+        let mut length;
+        let mut instruction_set = Vec::new();
+        let mut flip_flop = false;
 
-            if ch == 'N' {
+        let iter = history.iter();
+
+        // Each instruction comes in a pair, we are going to flip flop
+        // back and fourth to get the instruction, then get the burst
+        for char_str in iter {
+            // If the instructions start with N, its cutoff time
+            if char_str == "N" {
                 break;
-            }
+            } 
 
-            println!("Current char is {}", ch);
-            if let Some(num_str) = iter.next() {
-                println!("Current int is {}", num_str);
-                let num = num_str.parse::<i32>().unwrap();
-                proc_history.push((ch, num));
+            if flip_flop {
+                // if flip flop is true, then we have the instruction already
+                // and just need to get the burst time
+                length = char_str.parse::<i32>().unwrap_or(0);
+                instruction_set.push((instruction.to_string(), length));
+                flip_flop = false;
+            } else {
+                // if the flipflop is false, we need the instruction
+                instruction = char_str;
+                flip_flop = true;
             }
         }
 
+        if DEBUG_FLAG { println!("ATTEMPTING CREATE PROCESS STRUCT"); }
+
+        // Create process based on the input strings we gathered
         let proc = Process {
             name: name_and_id[0].clone(),
             id: (i as i8),
             arrival_time: name_and_id[1].parse().unwrap(),
-            history: proc_history,
+            history: instruction_set,
             history_index: 0,
             cpu_timer: 0,
             cpu_total: 0,
