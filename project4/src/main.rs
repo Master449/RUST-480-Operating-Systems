@@ -29,7 +29,7 @@ impl Process {
         for it in self.history.clone() {
             print!("({}, {}) ", it.0, it.1);
         }
-        print!("\n");
+        println!();
 
         println!("History Idx:   {}", self.history_index);
         println!("CPU Timer:     {}", self.cpu_timer);
@@ -40,6 +40,16 @@ impl Process {
         println!("IO Bursts:     ({}, {})", self.io_burst_count.0, self.io_burst_count.1);
         println!("End Time:      {}", self.end_time);
         println!("Waiting Time:  {}", self.wait_time);
+    }
+
+    fn terminate(&self) {
+        println!("Process {0} has ended.", self.id);
+        println!("Name              {0}", self.name);
+        println!("Started at time   {0} and ended at time {1}", self.arrival_time, self.end_time);
+        println!("Total CPU time    {0} in {1} bursts", self.cpu_total, self.cpu_burst_count);
+        println!("Total Input time  {0} in {1} bursts", self.io_timer.0, self.io_burst_count.0);
+        println!("Total Output time {0} in {1} bursts", self.io_timer.1, self.io_burst_count.1);
+        println!("Time waiting      {0}", self.wait_time);
     }
 }
 
@@ -184,6 +194,7 @@ fn dump_queue(q: &VecDeque<Process>, name: String) {
  * Args
  *   all - reference Vec holding all VecDeques
  * **************************************************/
+// TODO: The deque might need to be process references
 fn dump_all_queues(all: &Vec<VecDeque<Process>>) {
     let names = ["Entry", "Ready", "Input", "Output"];
     for i in 1..4 {
@@ -199,10 +210,26 @@ fn dump_all_queues(all: &Vec<VecDeque<Process>>) {
  * Args
  *   proc - reference to process
  * ******************************************************************************/
-fn update_work_status(proc: &mut Process, timer: i32) {
+fn update_work_status(all: &Vec<VecDeque<Process>>, proc: &mut Process, timer: i32) {
     if (proc.history_index as usize) == proc.history.len() - 1 {
         proc.end_time = timer + 1;
         proc.wait_time = (proc.end_time - proc.arrival_time) - proc.cpu_total - proc.io_total.0 - proc.io_total.1;
+        proc.terminate();
+        // TODO: Figure out an alterative to nullptr move arounds
+    } else {
+        proc.history_index += 1;
+        let new_task = proc.history[proc.history_index as usize].0.clone();
+
+        match new_task.as_str() {
+            "I" => {
+                proc.io_timer.0 = proc.history[proc.history_index as usize].1;
+                all[2].push_back(&proc);
+                // TODO: Figure out an alterative to nullptr move arounds
+            }
+            "O" => {}
+            "C" => {}
+            _ => {}
+        }
     }
 }
 
