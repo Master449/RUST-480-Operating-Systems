@@ -19,6 +19,16 @@ struct Process {
     wait_time: i32,
 }
 
+/*
+* So the original implementation of this assignment, used
+* nullptrs to do logic, as in, if the active program was
+* nullptr, it knew that it had to grab another one.
+*
+* Possible solutions
+* - program 0, would be named kernel, logic check ID / name
+* - use one of the many std crates for pointers
+*/
+
 impl Process {
     fn debug_info(&self) {
         println!("Name:          {}", self.name);
