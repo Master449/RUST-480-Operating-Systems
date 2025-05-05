@@ -6,6 +6,13 @@ use std::env;
 use std::fs::read_to_string;
 use std::process::exit;
 
+struct QueueManager {
+    entryq: VecDeque<Process>,
+    readyq: VecDeque<Process>,
+    inputq: VecDeque<Process>,
+    outputq: VecDeque<Process>,
+}
+
 struct Process {
     name: String,
     id: i32,
@@ -21,23 +28,6 @@ struct Process {
     end_time: i32,
     wait_time: i32,
 }
-
-struct QueueManager {
-    entryq: VecDeque<Process>,
-    readyq: VecDeque<Process>,
-    inputq: VecDeque<Process>,
-    outputq: VecDeque<Process>,
-}
-
-/*
-* So the original implementation of this assignment, used
-* nullptrs to do logic, as in, if the active program was
-* nullptr, it knew that it had to grab another one.
-*
-* Possible solutions
-* - program 0, would be named kernel, logic check ID / name
-* - use one of the many std crates for pointers
-*/
 
 impl Process {
     fn debug_info(&self) {
@@ -73,9 +63,25 @@ impl Process {
     }
 }
 
+/*
+* So the original implementation of this assignment, used
+* nullptrs to do logic, as in, if the active program was
+* nullptr, it knew that it had to grab another one.
+*
+* Current solution: program 0, would be named kernel, logic check ID / name
+*******************************************************************************/
 fn main() {
     const DEBUG_FLAG: bool = true;
+
     let mut current_id: i32 = 100;
+    let mut input_index = 0;
+
+    let mut allqueues = QueueManager {
+        entryq: VecDeque::new(),
+        readyq: VecDeque::new(),
+        inputq: VecDeque::new(),
+        outputq: VecDeque::new(),
+    };
 
     // Get commandline arguments
     let args: Vec<String> = env::args().collect();
@@ -92,36 +98,19 @@ fn main() {
         .map(String::from)
         .collect();
 
-    let mut allqueues = QueueManager {
-        entryq: VecDeque::new(),
-        readyq: VecDeque::new(),
-        inputq: VecDeque::new(),
-        outputq: VecDeque::new(),
-    };
-
-    let mut i = 0;
-
-    while i < input.len() {
-        if input[i].contains("STOPHERE  0") || input[i].contains("N 0") {
+    while input_index < input.len() {
+        if input[input_index].contains("STOPHERE  0") || input[input_index].contains("N 0") {
             break;
         }
 
         // First line is program name and id
-        let input_name_and_id: Vec<String> = input[i].split(' ').map(String::from).collect();
-        let name_and_id: Vec<String> = input_name_and_id
-            .into_iter()
-            .filter(|s| !s.is_empty())
-            .collect();
+        let name_and_id: Vec<String> = clean_and_split_string(input[input_index].clone());
 
         // Increment because we need 2 lines per loop
-        i += 1;
+        input_index += 1;
 
         // Second line is program history
-        let history_strings: Vec<String> = input[i].split(' ').map(String::from).collect();
-        let history: Vec<String> = history_strings
-            .into_iter()
-            .filter(|s| !s.is_empty())
-            .collect();
+        let history: Vec<String> = clean_and_split_string(input[input_index].clone());
 
         // tmp variables for processing the instructions to
         // Vec<(Instruction, Burst) ...> format
@@ -164,12 +153,11 @@ fn main() {
         allqueues.entryq.push_back(proc);
 
         // Increment again
-        i += 1;
+        input_index += 1;
     }
     dump_all_queues(allqueues);
 }
 
-#[rustfmt::skip]
 fn create_process(process_name: String, process_id: i32, arrival: i32, instructions: Vec<(String, i32)>) -> Process {
     Process {
         name: process_name,
@@ -190,6 +178,14 @@ fn create_process(process_name: String, process_id: i32, arrival: i32, instructi
 
 fn kernel_takeover() -> Process {
     create_process("KERNEL".to_string(), 0, 0, Vec::new())
+}
+
+// Takes a string, splits it by whitespaces and then
+// removes the whitespaces from the vec
+fn clean_and_split_string(raw: String) -> Vec<String> {
+    let split_spaces: Vec<String> = raw.split(' ').map(String::from).collect();
+    let removed_whitespaces: Vec<String> = split_spaces.into_iter().filter(|s| !s.is_empty()).collect();
+    removed_whitespaces
 }
 
 /* dump_queue
@@ -233,7 +229,7 @@ fn dump_all_queues(queues: QueueManager) {
  * Args
  *   proc - reference to process
  * ******************************************************************************/
-fn update_work_status<'a>(all: &mut Vec<VecDeque<&'a Process>>, proc: &'a mut Process, timer: i32) {
+fn update_work_status<'a>(all: &mut Vec<VecDeque<&'a Process>>, proc: &'a mut Process, timer: i32) -> Process {
     if proc.history_index == proc.history.len() - 1 {
         proc.end_time = timer + 1;
         proc.wait_time = (proc.end_time - proc.arrival_time) - proc.cpu_total - proc.io_total.0 - proc.io_total.1;
@@ -262,6 +258,9 @@ fn update_work_status<'a>(all: &mut Vec<VecDeque<&'a Process>>, proc: &'a mut Pr
             }
         }
     }
+
+    // Return control to the kernel
+    kernel_takeover()
 }
 
 /* check_num_process
