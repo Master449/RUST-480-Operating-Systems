@@ -106,11 +106,8 @@ fn main() {
         // First line is program name and id
         let name_and_id: Vec<String> = clean_and_split_string(input[input_index].clone());
 
-        // Increment because we need 2 lines per loop
-        input_index += 1;
-
         // Second line is program history
-        let history: Vec<String> = clean_and_split_string(input[input_index].clone());
+        let history: Vec<String> = clean_and_split_string(input[input_index + 1].clone());
 
         // tmp variables for processing the instructions to
         // Vec<(Instruction, Burst) ...> format
@@ -145,17 +142,25 @@ fn main() {
         // Increment ID number
         current_id += 1;
 
+        // Create process based on the input strings we gathered
         let proc = create_process(name_and_id[0].clone(), current_id, name_and_id[1].parse().unwrap(), instruction_set);
 
-        // Create process based on the input strings we gathered
-        //proc.debug_info();
-
+        // Push it to entryq
         allqueues.entryq.push_back(proc);
 
         // Increment again
-        input_index += 1;
+        input_index += 2;
     }
-    dump_all_queues(allqueues);
+    dump_all_queues(&allqueues);
+
+    // get the process from the queue
+    let process = match allqueues.entryq.pop_front() {
+        Some(proc) => proc,
+        None => panic!("REASON"), // Or handle the None case differently
+    };
+
+    let new_proc = update_work_status(&mut allqueues, process, 0);
+    dump_all_queues(&allqueues);
 }
 
 fn create_process(process_name: String, process_id: i32, arrival: i32, instructions: Vec<(String, i32)>) -> Process {
@@ -196,7 +201,7 @@ fn clean_and_split_string(raw: String) -> Vec<String> {
  *   q    - reference to a queue
  *   name - name of the queue to print
  ****************************************************************/
-fn dump_queue(q: VecDeque<Process>, name: String) {
+fn dump_queue(q: &VecDeque<Process>, name: String) {
     print!("{name} Queue Contents: ");
     if q.is_empty() {
         print!("(Empty)");
@@ -214,11 +219,11 @@ fn dump_queue(q: VecDeque<Process>, name: String) {
  * Args
  *   queues - QueueManager struct
  * **************************************************/
-fn dump_all_queues(queues: QueueManager) {
-    dump_queue(queues.entryq, "Entry".to_string());
-    dump_queue(queues.readyq, "Ready".to_string());
-    dump_queue(queues.inputq, "Input".to_string());
-    dump_queue(queues.outputq, "Output".to_string());
+fn dump_all_queues(queues: &QueueManager) {
+    dump_queue(&queues.entryq, "Entry".to_string());
+    dump_queue(&queues.readyq, "Ready".to_string());
+    dump_queue(&queues.inputq, "Input".to_string());
+    dump_queue(&queues.outputq, "Output".to_string());
 }
 
 /* update_work_status
@@ -229,12 +234,11 @@ fn dump_all_queues(queues: QueueManager) {
  * Args
  *   proc - reference to process
  * ******************************************************************************/
-fn update_work_status<'a>(all: &mut Vec<VecDeque<&'a Process>>, proc: &'a mut Process, timer: i32) -> Process {
+fn update_work_status(queues: &mut QueueManager, mut proc: Process, timer: i32) -> Process {
     if proc.history_index == proc.history.len() - 1 {
         proc.end_time = timer + 1;
         proc.wait_time = (proc.end_time - proc.arrival_time) - proc.cpu_total - proc.io_total.0 - proc.io_total.1;
         proc.terminate();
-        // TODO: Figure out an alterative to nullptr move arounds
     } else {
         proc.history_index += 1;
         let new_task = proc.history[proc.history_index].0.clone();
@@ -242,15 +246,15 @@ fn update_work_status<'a>(all: &mut Vec<VecDeque<&'a Process>>, proc: &'a mut Pr
         match new_task.as_str() {
             "I" => {
                 proc.io_timer.0 = proc.history[proc.history_index].1;
-                all[2].push_back(&*proc);
+                queues.inputq.push_back(proc);
             }
             "O" => {
                 proc.io_timer.1 = proc.history[proc.history_index].1;
-                all[2].push_back(&*proc);
+                queues.outputq.push_back(proc);
             }
             "C" => {
                 proc.cpu_timer = proc.history[proc.history_index].1;
-                all[2].push_back(&*proc);
+                queues.readyq.push_back(proc);
             }
             _ => {
                 // uh oh
