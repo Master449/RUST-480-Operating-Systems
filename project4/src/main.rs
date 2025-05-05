@@ -11,6 +11,7 @@ struct QueueManager {
     readyq: VecDeque<Process>,
     inputq: VecDeque<Process>,
     outputq: VecDeque<Process>,
+    cpu_idle_status: bool,
     cpu_idle_time: i32,
     old_active_id: i32,
 }
@@ -85,6 +86,7 @@ fn main() {
         readyq: VecDeque::new(),
         inputq: VecDeque::new(),
         outputq: VecDeque::new(),
+        cpu_idle_status: false,
         cpu_idle_time: 0,
         old_active_id: 0,
     };
@@ -248,6 +250,8 @@ fn dump_all_queues(queues: &QueueManager) {
  * Args
  *   proc - reference to process
  * ******************************************************************************/
+
+// TODO: possible use Option instead of fake kernel process?
 fn update_work_status(queues: &mut QueueManager, mut proc: Process, timer: i32) -> Process {
     if proc.history_index == proc.history.len() - 1 {
         proc.end_time = timer + 1;
@@ -272,7 +276,7 @@ fn update_work_status(queues: &mut QueueManager, mut proc: Process, timer: i32) 
             }
             _ => {
                 // uh oh
-                panic!("HUH??? WHA ??? ?? ?");
+                panic!("update_work_status: new_task is not one of 'I', 'O', or 'C'.");
             }
         }
     }
@@ -305,7 +309,6 @@ fn check_num_process() -> i32 {
 fn process_active(proc: &mut Process, queues: &mut QueueManager, timer: i32) {
     // Get total process count
     let total_process: i32 = check_num_process();
-    let mut idle_print_out: bool = false;
 
     // If no process, see if we can load one
     if proc.name == "KERNEL" {
@@ -314,21 +317,29 @@ fn process_active(proc: &mut Process, queues: &mut QueueManager, timer: i32) {
         }
         // Double check queue is not empty
         if !(queues.readyq.is_empty()) {
-            // FIX: pop_front has a chance to return None
-            // proc = queues.readyq.pop_front();
+            // WARN: This might not be the proper way to do this
             proc.cpu_timer = proc.history[proc.history_index].1;
+            if let Some(new_proc) = queues.readyq.pop_front() {
+                proc.cpu_timer = proc.history[proc.history_index].1;
+                *proc = new_proc;
+            } else {
+                *proc = kernel_takeover();
+            }
         } else if !(queues.entryq.is_empty() && (total_process < IN_USE)) {
-            // FIX: pop_front has a chance to return None
-            //  proc = entryq.pop_front();
-            proc.cpu_timer = proc.history[proc.history_index].1;
-            check_num_process();
+            // WARN: This might not be the proper way to do this
+            if let Some(new_proc) = queues.entryq.pop_front() {
+                proc.cpu_timer = proc.history[proc.history_index].1;
+                *proc = new_proc;
+            } else {
+                *proc = kernel_takeover();
+            }
         }
     }
     //
     // // Double check we have a process
     if proc.name != "KERNEL" {
         // If we've done some work, idle flag gets reset
-        idle_print_out = true;
+        queues.cpu_idle_status = true;
 
         // Increment cpu total, and decrement work timer
         proc.cpu_total += 1;
@@ -339,16 +350,16 @@ fn process_active(proc: &mut Process, queues: &mut QueueManager, timer: i32) {
         if proc.cpu_timer == 0 {
             proc.cpu_burst_count += 1;
             queues.old_active_id = proc.id;
-            //update_work_status(queues, proc, 0);
+            //proc = update_work_status(queues, proc, 0);
         }
     } else {
         // If no process, add idle time
         queues.cpu_idle_time += 1;
 
         // Flag is so we only print once when we start idling
-        if idle_print_out {
+        if queues.cpu_idle_status {
             println!("At time {timer} Active is 0, so we idle for a while");
-            idle_print_out = false;
+            queues.cpu_idle_status = false;
         }
     }
 }
