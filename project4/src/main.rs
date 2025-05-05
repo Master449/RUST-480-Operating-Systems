@@ -11,6 +11,8 @@ struct QueueManager {
     readyq: VecDeque<Process>,
     inputq: VecDeque<Process>,
     outputq: VecDeque<Process>,
+    cpu_idle_time: i32,
+    old_active_id: i32,
 }
 
 struct Process {
@@ -63,6 +65,8 @@ impl Process {
     }
 }
 
+const IN_USE: i32 = 5;
+
 /*
 * So the original implementation of this assignment, used
 * nullptrs to do logic, as in, if the active program was
@@ -81,6 +85,8 @@ fn main() {
         readyq: VecDeque::new(),
         inputq: VecDeque::new(),
         outputq: VecDeque::new(),
+        cpu_idle_time: 0,
+        old_active_id: 0,
     };
 
     // Get commandline arguments
@@ -161,6 +167,14 @@ fn main() {
 
     let new_proc = update_work_status(&mut allqueues, process, 0);
     dump_all_queues(&allqueues);
+
+    // The logic needs to be as follows
+    // if no active process
+    //      check readyq
+    //      if still no active process
+    //          check entryq
+    //
+    //
 }
 
 fn create_process(process_name: String, process_id: i32, arrival: i32, instructions: Vec<(String, i32)>) -> Process {
@@ -271,7 +285,9 @@ fn update_work_status(queues: &mut QueueManager, mut proc: Process, timer: i32) 
  *    checks to see if there is room to add any processes
  *    from the entryq to the readyq
  * ***************************************************************/
-fn check_num_process() {}
+fn check_num_process() -> i32 {
+    0
+}
 
 /* process_active
  *    processes the CPUs bursts. If the burst reaches 0
@@ -280,7 +296,62 @@ fn check_num_process() {}
  *
  *    if nothing is here it adds idle time to the total
  * ***************************************************************/
-fn process_active(proc: &mut Process) {}
+//
+// TODO:
+// check_num_process might need to be split into two functions
+// one for returning the total process count, and one for actually
+// loading the new process, as both are going to need to return
+// a different result
+fn process_active(proc: &mut Process, queues: &mut QueueManager, timer: i32) {
+    // Get total process count
+    let total_process: i32 = check_num_process();
+    let mut idle_print_out: bool = false;
+
+    // If no process, see if we can load one
+    if proc.name == "KERNEL" {
+        if queues.readyq.is_empty() {
+            //         check_num_prociess();
+        }
+        // Double check queue is not empty
+        if !(queues.readyq.is_empty()) {
+            // FIX: pop_front has a chance to return None
+            // proc = queues.readyq.pop_front();
+            proc.cpu_timer = proc.history[proc.history_index].1;
+        } else if !(queues.entryq.is_empty() && (total_process < IN_USE)) {
+            // FIX: pop_front has a chance to return None
+            //  proc = entryq.pop_front();
+            proc.cpu_timer = proc.history[proc.history_index].1;
+            check_num_process();
+        }
+    }
+    //
+    // // Double check we have a process
+    if proc.name != "KERNEL" {
+        // If we've done some work, idle flag gets reset
+        idle_print_out = true;
+
+        // Increment cpu total, and decrement work timer
+        proc.cpu_total += 1;
+        proc.cpu_timer -= 1;
+
+        // If we are at the end of this burst
+        // add it to total, and see where next
+        if proc.cpu_timer == 0 {
+            proc.cpu_burst_count += 1;
+            queues.old_active_id = proc.id;
+            //update_work_status(queues, proc, 0);
+        }
+    } else {
+        // If no process, add idle time
+        queues.cpu_idle_time += 1;
+
+        // Flag is so we only print once when we start idling
+        if idle_print_out {
+            println!("At time {timer} Active is 0, so we idle for a while");
+            idle_print_out = false;
+        }
+    }
+}
 
 /* process_iactive
  *    processes the input burst. If the burst reaches 0
