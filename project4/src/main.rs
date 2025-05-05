@@ -6,6 +6,8 @@ use std::env;
 use std::fs::read_to_string;
 use std::process::exit;
 
+struct Queue {}
+
 struct QueueManager {
     entryq: VecDeque<Process>,
     readyq: VecDeque<Process>,
@@ -16,6 +18,7 @@ struct QueueManager {
     old_active_id: i32,
 }
 
+#[derive(Debug)]
 struct Process {
     name: String,
     id: i32,
@@ -241,10 +244,27 @@ fn dump_all_queues(queues: &QueueManager) {
     dump_queue(&queues.inputq, "Input".to_string());
     dump_queue(&queues.outputq, "Output".to_string());
 }
+// aivree wrote this --------------------
+enum QueueType {
+    Entry,
+    Ready,
+    Input,
+    Output,
+}
+
+fn test_fn(queue: QueueType) {
+    match queue {
+        QueueType::Entry => todo!(),
+        QueueType::Ready => todo!(),
+        QueueType::Input => todo!(),
+        QueueType::Output => todo!(),
+    }
+}
+// --------------------------------------
 
 /* update_work_status
  *    checks if a process is at the end of its history, and terminates if so.
- *    if its not, updates the timers for the work to be done, puts it in
+r*    if its not, updates the timers for the work to be done, puts it in
  *    the correct queue for processing, and prints out the change.
  *
  * Args
