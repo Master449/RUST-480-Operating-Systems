@@ -1,14 +1,17 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+use core::panic;
 use std::collections::VecDeque;
 use std::env;
-use std::fs::{read, read_to_string};
+use std::fs::read_to_string;
 use std::process::exit;
 
 struct Process {
     name: String,
-    id: i8,
+    id: i32,
     arrival_time: i32,
     history: Vec<(String, i32)>,
-    history_index: i8,
+    history_index: usize,
     cpu_timer: i32,
     cpu_total: i32,
     cpu_burst_count: i32,
@@ -17,6 +20,13 @@ struct Process {
     io_burst_count: (i32, i32),
     end_time: i32,
     wait_time: i32,
+}
+
+struct QueueManager {
+    entryq: VecDeque<Process>,
+    readyq: VecDeque<Process>,
+    inputq: VecDeque<Process>,
+    outputq: VecDeque<Process>,
 }
 
 /*
@@ -65,6 +75,7 @@ impl Process {
 
 fn main() {
     const DEBUG_FLAG: bool = true;
+    let mut current_id: i32 = 100;
 
     // Get commandline arguments
     let args: Vec<String> = env::args().collect();
@@ -74,10 +85,6 @@ fn main() {
         exit(1)
     }
 
-    if DEBUG_FLAG {
-        println!("PASSED ARGS");
-    }
-
     // Get lines of input
     let input: Vec<String> = read_to_string(&args[1])
         .unwrap()
@@ -85,17 +92,18 @@ fn main() {
         .map(String::from)
         .collect();
 
+    let mut allqueues = QueueManager {
+        entryq: VecDeque::new(),
+        readyq: VecDeque::new(),
+        inputq: VecDeque::new(),
+        outputq: VecDeque::new(),
+    };
+
     let mut i = 0;
 
     while i < input.len() {
-        if input[i].contains("STOPHERE") {
-            if DEBUG_FLAG {
-                println!("STOPHERE ENCOUNTERED");
-            }
+        if input[i].contains("STOPHERE  0") || input[i].contains("N 0") {
             break;
-        }
-        if DEBUG_FLAG {
-            println!("EXITED STOPHERE");
         }
 
         // First line is program name and id
@@ -105,7 +113,7 @@ fn main() {
             .filter(|s| !s.is_empty())
             .collect();
 
-        // Increment because
+        // Increment because we need 2 lines per loop
         i += 1;
 
         // Second line is program history
@@ -114,10 +122,6 @@ fn main() {
             .into_iter()
             .filter(|s| !s.is_empty())
             .collect();
-
-        if DEBUG_FLAG {
-            println!("STARTING PROCESS HISTORY STRING PROCESSING");
-        }
 
         // tmp variables for processing the instructions to
         // Vec<(Instruction, Burst) ...> format
@@ -132,7 +136,7 @@ fn main() {
         // back and fourth to get the instruction, then get the burst
         for char_str in iter {
             // If the instructions start with N, its cutoff time
-            if char_str == "N" {
+            if char_str == "N" || char_str == "STOPHERE" {
                 break;
             }
 
@@ -149,18 +153,24 @@ fn main() {
             }
         }
 
-        if DEBUG_FLAG {
-            println!("ATTEMPTING CREATE PROCESS STRUCT");
-        }
+        // Increment ID number
+        current_id += 1;
 
-        let proc = create_process(name_and_id[0].clone(), i as i8, name_and_id[1].parse().unwrap(), instruction_set);
+        let proc = create_process(name_and_id[0].clone(), current_id, name_and_id[1].parse().unwrap(), instruction_set);
+
         // Create process based on the input strings we gathered
-        proc.debug_info();
+        //proc.debug_info();
+
+        allqueues.entryq.push_back(proc);
+
+        // Increment again
+        i += 1;
     }
+    dump_all_queues(allqueues);
 }
 
 #[rustfmt::skip]
-fn create_process(process_name: String, process_id: i8, arrival: i32, instructions: Vec<(String, i32)>) -> Process {
+fn create_process(process_name: String, process_id: i32, arrival: i32, instructions: Vec<(String, i32)>) -> Process {
     Process {
         name: process_name,
         id: process_id,
@@ -178,6 +188,10 @@ fn create_process(process_name: String, process_id: i8, arrival: i32, instructio
     }
 }
 
+fn kernel_takeover() -> Process {
+    create_process("KERNEL".to_string(), 0, 0, Vec::new())
+}
+
 /* dump_queue
  *    takes a reference to a queue and prints all the process
  *    IDs that are inside. Mainly for the summaries.
@@ -186,7 +200,7 @@ fn create_process(process_name: String, process_id: i8, arrival: i32, instructio
  *   q    - reference to a queue
  *   name - name of the queue to print
  ****************************************************************/
-fn dump_queue(q: &VecDeque<Process>, name: String) {
+fn dump_queue(q: VecDeque<Process>, name: String) {
     print!("{name} Queue Contents: ");
     if q.is_empty() {
         print!("(Empty)");
@@ -202,14 +216,13 @@ fn dump_queue(q: &VecDeque<Process>, name: String) {
  *    Just prints out every queue sequentially
  *
  * Args
- *   all - reference Vec holding all VecDeques
+ *   queues - QueueManager struct
  * **************************************************/
-// TODO: The deque might need to be process references
-fn dump_all_queues(all: &Vec<VecDeque<Process>>) {
-    let names = ["Entry", "Ready", "Input", "Output"];
-    for i in 1..4 {
-        dump_queue(&all[i], names[i].to_string());
-    }
+fn dump_all_queues(queues: QueueManager) {
+    dump_queue(queues.entryq, "Entry".to_string());
+    dump_queue(queues.readyq, "Ready".to_string());
+    dump_queue(queues.inputq, "Input".to_string());
+    dump_queue(queues.outputq, "Output".to_string());
 }
 
 /* update_work_status
@@ -220,25 +233,33 @@ fn dump_all_queues(all: &Vec<VecDeque<Process>>) {
  * Args
  *   proc - reference to process
  * ******************************************************************************/
-fn update_work_status(all: &Vec<VecDeque<Process>>, proc: &mut Process, timer: i32) {
-    if (proc.history_index as usize) == proc.history.len() - 1 {
+fn update_work_status<'a>(all: &mut Vec<VecDeque<&'a Process>>, proc: &'a mut Process, timer: i32) {
+    if proc.history_index == proc.history.len() - 1 {
         proc.end_time = timer + 1;
         proc.wait_time = (proc.end_time - proc.arrival_time) - proc.cpu_total - proc.io_total.0 - proc.io_total.1;
         proc.terminate();
         // TODO: Figure out an alterative to nullptr move arounds
     } else {
         proc.history_index += 1;
-        let new_task = proc.history[proc.history_index as usize].0.clone();
+        let new_task = proc.history[proc.history_index].0.clone();
 
         match new_task.as_str() {
             "I" => {
-                proc.io_timer.0 = proc.history[proc.history_index as usize].1;
-                all[2].push_back(&proc);
-                // TODO: Figure out an alterative to nullptr move arounds
+                proc.io_timer.0 = proc.history[proc.history_index].1;
+                all[2].push_back(&*proc);
             }
-            "O" => {}
-            "C" => {}
-            _ => {}
+            "O" => {
+                proc.io_timer.1 = proc.history[proc.history_index].1;
+                all[2].push_back(&*proc);
+            }
+            "C" => {
+                proc.cpu_timer = proc.history[proc.history_index].1;
+                all[2].push_back(&*proc);
+            }
+            _ => {
+                // uh oh
+                panic!("HUH??? WHA ??? ?? ?");
+            }
         }
     }
 }
