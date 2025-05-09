@@ -2,10 +2,9 @@
 #![allow(unused_variables)]
 use core::panic;
 use std::collections::VecDeque;
+use std::env;
 use std::fs::read_to_string;
 use std::process::exit;
-use std::time::Duration;
-use std::{env, thread};
 
 const IN_USE: u32 = 5;
 const MAX_TIME: u32 = 500;
@@ -166,10 +165,12 @@ fn main() {
         current_id += 1;
 
         // Create process based on the input strings we gathered
-        let proc = create_process(name_and_id[0].clone(), current_id, name_and_id[1].parse().unwrap(), instruction_set);
+        if let Ok(arrival_time) = name_and_id[1].parse() {
+            let proc = create_process(name_and_id[0].clone(), current_id, arrival_time, instruction_set);
 
-        // Push it to entryq
-        manager.entryq.push_back(proc);
+            // Push it to entryq
+            manager.entryq.push_back(proc);
+        }
 
         // Increment again
         input_index += 2;
@@ -186,23 +187,23 @@ fn main() {
         if timer % HOW_OFTEN == 0 {
             println!("Status at time {}", timer);
 
-            if manager.active.is_some() {
-                //println!("Active is {}", manager.active.clone().unwrap().id);
-                manager.active.clone().unwrap().debug_info();
+            if let Some(active_proc) = &manager.active {
+                println!("Active is {}", active_proc.id);
+                //active.debug_info();
             } else {
                 println!("Active is 0");
             }
 
-            if manager.iactive.is_some() {
-                //println!("IActive is {}", manager.iactive.clone().unwrap().id);
-                manager.iactive.clone().unwrap().debug_info();
+            if let Some(iactive_proc) = &manager.iactive {
+                println!("IActive is {}", iactive_proc.id);
+                //iactive.debug_info();
             } else {
                 println!("IActive is 0");
             }
 
-            if manager.oactive.is_some() {
-                //println!("OActive is {}", manager.oactive.clone().unwrap().id);
-                manager.oactive.clone().unwrap().debug_info();
+            if let Some(oactive_proc) = &manager.oactive {
+                println!("OActive is {}", oactive_proc.id);
+                //oactive.debug_info();
             } else {
                 println!("OActive is 0");
             }
@@ -277,14 +278,15 @@ fn create_process(process_name: String, process_id: u32, arrival: u32, instructi
 
 #[rustfmt::skip]
 fn load_ready(manager: &mut ProcessManager, total_proc: u32) {
-    println!("ENTERING LOAD_READY WITH TOTAL PROCESSES = {}", total_proc);
     let free_space = IN_USE - total_proc;
     let mut added = 0;
 
     while added < free_space {
         if !manager.entryq.is_empty() {
-            manager.readyq.push_back(manager.entryq.pop_front().unwrap());
-
+            if let Some(proc) = manager.entryq.pop_front() {
+                manager.readyq.push_back(proc);
+                added += 1;
+            }
             added += 1;
          } else {
             return
@@ -418,20 +420,21 @@ fn process_active(manager: &mut ProcessManager, timer: u32) {
     //
     // // Double check we have a process
     if manager.active.is_some() {
-        let proc = manager.active.as_mut().unwrap();
-        // If we've done some work, idle flag gets reset
-        manager.cpu_idle_status = true;
+        if let Some(proc) = manager.active.as_mut() {
+            // If we've done some work, idle flag gets reset
+            manager.cpu_idle_status = true;
 
-        // Increment cpu total, and decrement work timer
-        proc.cpu_total += 1;
-        proc.cpu_timer -= 1;
+            // Increment cpu total, and decrement work timer
+            proc.cpu_total += 1;
+            proc.cpu_timer -= 1;
 
-        // If we are at the end of this burst
-        // add it to total, and see where next
-        if proc.cpu_timer == 0 {
-            proc.cpu_burst_count += 1;
-            manager.old_active_id = proc.id;
-            manager.active = update_work_status(manager, timer, 'A');
+            // If we are at the end of this burst
+            // add it to total, and see where next
+            if proc.cpu_timer == 0 {
+                proc.cpu_burst_count += 1;
+                manager.old_active_id = proc.id;
+                manager.active = update_work_status(manager, timer, 'A');
+            }
         }
     } else {
         // If no process, add idle time
@@ -466,21 +469,21 @@ fn process_iactive(manager: &mut ProcessManager, timer: u32) {
     //
     // // Double check we have a process
     if manager.iactive.is_some() {
-        let proc = manager.iactive.as_mut().unwrap();
+        if let Some(proc) = manager.iactive.as_mut() {
+            if manager.old_active_id == proc.id {
+                return;
+            }
 
-        if manager.old_active_id == proc.id {
-            return;
-        }
+            // Increment cpu total, and decrement work timer
+            proc.io_total.0 += 1;
+            proc.io_timer.0 -= 1;
 
-        // Increment cpu total, and decrement work timer
-        proc.io_total.0 += 1;
-        proc.io_timer.0 -= 1;
-
-        // If we are at the end of this burst
-        // add it to total, and see where next
-        if proc.io_timer.0 == 0 {
-            proc.io_burst_count.0 += 1;
-            manager.iactive = update_work_status(manager, timer, 'I');
+            // If we are at the end of this burst
+            // add it to total, and see where next
+            if proc.io_timer.0 == 0 {
+                proc.io_burst_count.0 += 1;
+                manager.iactive = update_work_status(manager, timer, 'I');
+            }
         }
     }
 }
@@ -506,21 +509,21 @@ fn process_oactive(manager: &mut ProcessManager, timer: u32) {
     //
     // // Double check we have a process
     if manager.oactive.is_some() {
-        let proc = manager.oactive.as_mut().unwrap();
+        if let Some(proc) = manager.oactive.as_mut() {
+            if manager.old_active_id == proc.id {
+                return;
+            }
 
-        if manager.old_active_id == proc.id {
-            return;
-        }
+            // Increment cpu total, and decrement work timer
+            proc.io_total.1 += 1;
+            proc.io_timer.1 -= 1;
 
-        // Increment cpu total, and decrement work timer
-        proc.io_total.1 += 1;
-        proc.io_timer.1 -= 1;
-
-        // If we are at the end of this burst
-        // add it to total, and see where next
-        if proc.io_timer.1 == 0 {
-            proc.io_burst_count.1 += 1;
-            manager.oactive = update_work_status(manager, timer, 'O');
+            // If we are at the end of this burst
+            // add it to total, and see where next
+            if proc.io_timer.1 == 0 {
+                proc.io_burst_count.1 += 1;
+                manager.oactive = update_work_status(manager, timer, 'O');
+            }
         }
     }
 }
