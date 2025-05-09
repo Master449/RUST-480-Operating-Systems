@@ -89,6 +89,7 @@ fn main() {
 
     let mut current_id: u32 = 100;
     let mut input_index = 0;
+    let mut input: Vec<String>;
 
     let mut manager = ProcessManager {
         active: None,
@@ -114,11 +115,11 @@ fn main() {
     }
 
     // Get lines of input
-    let input: Vec<String> = read_to_string(&args[1])
-        .unwrap()
-        .lines()
-        .map(String::from)
-        .collect();
+    if let Ok(success) = read_to_string(&args[1]) {
+        input = success.lines().map(String::from).collect();
+    } else {
+        panic!("Could not transform `input` instructions from input file into Vec<String>");
+    }
 
     while input_index < input.len() {
         if input[input_index].contains("STOPHERE  0") || input[input_index].contains("N 0") {
@@ -134,7 +135,7 @@ fn main() {
         // tmp variables for processing the instructions to
         // Vec<(Instruction, Burst) ...> format
         let mut instruction = "";
-        let mut length;
+        let mut length: u32;
         let mut instruction_set = Vec::new();
         let mut flip_flop = false;
 
@@ -151,9 +152,12 @@ fn main() {
             if flip_flop {
                 // if flip flop is true, then we have the instruction already
                 // and just need to get the burst time
-                length = char_str.parse::<u32>().unwrap_or(0);
-                instruction_set.push((instruction.to_string(), length));
-                flip_flop = false;
+                if let Ok(length) = char_str.parse::<u32>() {
+                    instruction_set.push((instruction.to_string(), length));
+                    flip_flop = false;
+                } else {
+                    panic!("Could not parse char as u32 inside of flip_flop");
+                }
             } else {
                 // if the flipflop is false, we need the instruction
                 instruction = char_str;
@@ -339,12 +343,18 @@ r*    if its not, updates the timers for the work to be done, puts it in
 fn update_work_status(manager: &mut ProcessManager, timer: u32, from: char) -> Option<Process> {
     let proc;
 
-    if from == 'A' {
-        proc = manager.active.as_mut().unwrap();
+    let active_manager = if from == 'A' {
+        &mut manager.active
     } else if from == 'I' {
-        proc = manager.iactive.as_mut().unwrap();
+        &mut manager.iactive
     } else {
-        proc = manager.oactive.as_mut().unwrap();
+        &mut manager.oactive
+    };
+
+    if let Some(tmp) = active_manager.as_mut() {
+        proc = tmp;
+    } else {
+        panic!("Came from process_active, but the active process is not there!");
     }
 
     if proc.history_index == proc.history.len() - 1 {
