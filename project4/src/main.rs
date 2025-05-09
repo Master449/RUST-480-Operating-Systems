@@ -1,38 +1,41 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 use core::panic;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::env;
 use std::fs::read_to_string;
 use std::process::exit;
 
-struct Queue {}
+const IN_USE: usize = 5;
 
-struct QueueManager {
+struct ProcessManager {
+    active: Option<Process>,
+    iactive: Option<Process>,
+    oactive: Option<Process>,
     entryq: VecDeque<Process>,
     readyq: VecDeque<Process>,
     inputq: VecDeque<Process>,
     outputq: VecDeque<Process>,
     cpu_idle_status: bool,
-    cpu_idle_time: i32,
-    old_active_id: i32,
+    cpu_idle_time: u32,
+    old_active_id: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Process {
     name: String,
-    id: i32,
-    arrival_time: i32,
-    history: Vec<(String, i32)>,
+    id: u32,
+    arrival_time: u32,
+    history: Vec<(String, u32)>,
     history_index: usize,
-    cpu_timer: i32,
-    cpu_total: i32,
-    cpu_burst_count: i32,
-    io_timer: (i32, i32),
-    io_total: (i32, i32),
-    io_burst_count: (i32, i32),
-    end_time: i32,
-    wait_time: i32,
+    cpu_timer: u32,
+    cpu_total: u32,
+    cpu_burst_count: u32,
+    io_timer: (u32, u32),
+    io_total: (u32, u32),
+    io_burst_count: (u32, u32),
+    end_time: u32,
+    wait_time: u32,
 }
 
 impl Process {
@@ -69,8 +72,6 @@ impl Process {
     }
 }
 
-const IN_USE: i32 = 5;
-
 /*
 * So the original implementation of this assignment, used
 * nullptrs to do logic, as in, if the active program was
@@ -81,10 +82,14 @@ const IN_USE: i32 = 5;
 fn main() {
     const DEBUG_FLAG: bool = true;
 
-    let mut current_id: i32 = 100;
+    let mut current_id: u32 = 100;
     let mut input_index = 0;
+    let mut proc_index = 0;
 
-    let mut allqueues = QueueManager {
+    let mut scheduler = ProcessManager {
+        active: None,
+        iactive: None,
+        oactive: None,
         entryq: VecDeque::new(),
         readyq: VecDeque::new(),
         inputq: VecDeque::new(),
@@ -140,7 +145,7 @@ fn main() {
             if flip_flop {
                 // if flip flop is true, then we have the instruction already
                 // and just need to get the burst time
-                length = char_str.parse::<i32>().unwrap_or(0);
+                length = char_str.parse::<u32>().unwrap_or(0);
                 instruction_set.push((instruction.to_string(), length));
                 flip_flop = false;
             } else {
@@ -155,23 +160,24 @@ fn main() {
 
         // Create process based on the input strings we gathered
         let proc = create_process(name_and_id[0].clone(), current_id, name_and_id[1].parse().unwrap(), instruction_set);
+        let proc_id = proc.id;
 
         // Push it to entryq
-        allqueues.entryq.push_back(proc);
 
         // Increment again
         input_index += 2;
+        proc_index += 1;
     }
-    dump_all_queues(&allqueues);
+    //dump_all_queues(&allqueues);
 
     // get the process from the queue
-    let process = match allqueues.entryq.pop_front() {
-        Some(proc) => proc,
-        None => panic!("REASON"), // Or handle the None case differently
-    };
+    //let process = match allqueues.entryq.pop_front() {
+    //    Some(proc) => proc,
+    //    None => panic!("REASON"), // Or handle the None case differently
+    //};
 
-    let new_proc = update_work_status(&mut allqueues, process, 0);
-    dump_all_queues(&allqueues);
+    //let new_proc = update_work_status(&mut allqueues, process, 0);
+    //dump_all_queues(&allqueues);
 
     // The logic needs to be as follows
     // if no active process
@@ -182,7 +188,7 @@ fn main() {
     //
 }
 
-fn create_process(process_name: String, process_id: i32, arrival: i32, instructions: Vec<(String, i32)>) -> Process {
+fn create_process(process_name: String, process_id: u32, arrival: u32, instructions: Vec<(String, u32)>) -> Process {
     Process {
         name: process_name,
         id: process_id,
@@ -215,12 +221,8 @@ fn clean_and_split_string(raw: String) -> Vec<String> {
 /* dump_queue
  *    takes a reference to a queue and prints all the process
  *    IDs that are inside. Mainly for the summaries.
- *
- * Args
- *   q    - reference to a queue
- *   name - name of the queue to print
  ****************************************************************/
-fn dump_queue(q: &VecDeque<Process>, name: String) {
+fn dump_queue(q: VecDeque<Process>, name: String) {
     print!("{name} Queue Contents: ");
     if q.is_empty() {
         print!("(Empty)");
@@ -234,15 +236,12 @@ fn dump_queue(q: &VecDeque<Process>, name: String) {
 
 /* dump_all_queues
  *    Just prints out every queue sequentially
- *
- * Args
- *   queues - QueueManager struct
  * **************************************************/
-fn dump_all_queues(queues: &QueueManager) {
-    dump_queue(&queues.entryq, "Entry".to_string());
-    dump_queue(&queues.readyq, "Ready".to_string());
-    dump_queue(&queues.inputq, "Input".to_string());
-    dump_queue(&queues.outputq, "Output".to_string());
+fn dump_all_queues(queues: ProcessManager) {
+    dump_queue(queues.entryq, "Entry".to_string());
+    dump_queue(queues.readyq, "Ready".to_string());
+    dump_queue(queues.inputq, "Input".to_string());
+    dump_queue(queues.outputq, "Output".to_string());
 }
 // aivree wrote this --------------------
 enum QueueType {
@@ -270,9 +269,8 @@ r*    if its not, updates the timers for the work to be done, puts it in
  * Args
  *   proc - reference to process
  * ******************************************************************************/
-
-// TODO: possible use Option instead of fake kernel process?
-fn update_work_status(queues: &mut QueueManager, mut proc: Process, timer: i32) -> Process {
+fn update_work_status(manager: &mut ProcessManager, timer: u32) -> Option<Process> {
+    let proc = manager.active.as_mut().unwrap();
     if proc.history_index == proc.history.len() - 1 {
         proc.end_time = timer + 1;
         proc.wait_time = (proc.end_time - proc.arrival_time) - proc.cpu_total - proc.io_total.0 - proc.io_total.1;
@@ -284,15 +282,15 @@ fn update_work_status(queues: &mut QueueManager, mut proc: Process, timer: i32) 
         match new_task.as_str() {
             "I" => {
                 proc.io_timer.0 = proc.history[proc.history_index].1;
-                queues.inputq.push_back(proc);
+                manager.inputq.push_back(proc.clone());
             }
             "O" => {
                 proc.io_timer.1 = proc.history[proc.history_index].1;
-                queues.outputq.push_back(proc);
+                manager.outputq.push_back(proc.clone());
             }
             "C" => {
                 proc.cpu_timer = proc.history[proc.history_index].1;
-                queues.readyq.push_back(proc);
+                manager.readyq.push_back(proc.clone());
             }
             _ => {
                 // uh oh
@@ -301,16 +299,7 @@ fn update_work_status(queues: &mut QueueManager, mut proc: Process, timer: i32) 
         }
     }
 
-    // Return control to the kernel
-    kernel_takeover()
-}
-
-/* check_num_process
- *    checks to see if there is room to add any processes
- *    from the entryq to the readyq
- * ***************************************************************/
-fn check_num_process() -> i32 {
-    0
+    None
 }
 
 /* process_active
@@ -320,46 +309,42 @@ fn check_num_process() -> i32 {
  *
  *    if nothing is here it adds idle time to the total
  * ***************************************************************/
-//
-// TODO:
-// check_num_process might need to be split into two functions
-// one for returning the total process count, and one for actually
-// loading the new process, as both are going to need to return
-// a different result
-fn process_active(proc: &mut Process, queues: &mut QueueManager, timer: i32) {
+#[rustfmt::skip]
+fn process_active(manager: &mut ProcessManager, timer: u32) {
     // Get total process count
-    let total_process: i32 = check_num_process();
+    let mut total_process: usize = manager.readyq.len() + manager.inputq.len() + manager.outputq.len();
+
+    if manager.active.is_some() { total_process += 1; }
+    if manager.iactive.is_some() { total_process += 1; }
+    if manager.oactive.is_some() { total_process += 1; }
 
     // If no process, see if we can load one
-    if proc.name == "KERNEL" {
-        if queues.readyq.is_empty() {
-            //         check_num_prociess();
+    if manager.active.is_none() {
+        if manager.readyq.is_empty() {
+            // TODO: load_readyq();
         }
         // Double check queue is not empty
-        if !(queues.readyq.is_empty()) {
-            // WARN: This might not be the proper way to do this
-            proc.cpu_timer = proc.history[proc.history_index].1;
-            if let Some(new_proc) = queues.readyq.pop_front() {
-                proc.cpu_timer = proc.history[proc.history_index].1;
-                *proc = new_proc;
+        if !(manager.readyq.is_empty()) {
+            if let Some(new_proc) = manager.readyq.pop_front() {
+                manager.active = Some(new_proc);
             } else {
-                *proc = kernel_takeover();
+                manager.active = None;
             }
-        } else if !(queues.entryq.is_empty() && (total_process < IN_USE)) {
-            // WARN: This might not be the proper way to do this
-            if let Some(new_proc) = queues.entryq.pop_front() {
-                proc.cpu_timer = proc.history[proc.history_index].1;
-                *proc = new_proc;
+        } else if !(manager.entryq.is_empty() && (total_process < IN_USE)) {
+            if let Some(new_proc) = manager.entryq.pop_front() {
+                //proc.unwrap().cpu_timer = proc.unwrap().history[proc.unwrap().history_index].1;
+                manager.active = Some(new_proc);
             } else {
-                *proc = kernel_takeover();
+                manager.active = None;
             }
         }
     }
     //
     // // Double check we have a process
-    if proc.name != "KERNEL" {
+    if manager.active.is_some() {
+        let proc = manager.active.as_mut().unwrap();
         // If we've done some work, idle flag gets reset
-        queues.cpu_idle_status = true;
+        manager.cpu_idle_status = true;
 
         // Increment cpu total, and decrement work timer
         proc.cpu_total += 1;
@@ -369,17 +354,17 @@ fn process_active(proc: &mut Process, queues: &mut QueueManager, timer: i32) {
         // add it to total, and see where next
         if proc.cpu_timer == 0 {
             proc.cpu_burst_count += 1;
-            queues.old_active_id = proc.id;
-            //proc = update_work_status(queues, proc, 0);
+            manager.old_active_id = proc.id;
+            manager.active = update_work_status(manager, timer);
         }
     } else {
         // If no process, add idle time
-        queues.cpu_idle_time += 1;
+        manager.cpu_idle_time += 1;
 
         // Flag is so we only print once when we start idling
-        if queues.cpu_idle_status {
+        if manager.cpu_idle_status {
             println!("At time {timer} Active is 0, so we idle for a while");
-            queues.cpu_idle_status = false;
+            manager.cpu_idle_status = false;
         }
     }
 }
@@ -390,7 +375,39 @@ fn process_active(proc: &mut Process, queues: &mut QueueManager, timer: i32) {
  *    stops or moves onto bigger and better things
  *
  * ***************************************************************/
-fn process_iactive(proc: &mut Process) {}
+fn process_iactive(manager: &mut ProcessManager, timer: u32) {
+    // If no process, see if we can load one
+    if manager.iactive.is_none() {
+        // Double check queue is not empty
+        if !(manager.inputq.is_empty()) {
+            if let Some(new_proc) = manager.inputq.pop_front() {
+                manager.iactive = Some(new_proc);
+            } else {
+                return;
+            }
+        }
+    }
+    //
+    // // Double check we have a process
+    if manager.iactive.is_some() {
+        let proc = manager.iactive.as_mut().unwrap();
+
+        if manager.old_active_id == proc.id {
+            return;
+        }
+
+        // Increment cpu total, and decrement work timer
+        proc.io_total.0 += 1;
+        proc.io_timer.0 -= 1;
+
+        // If we are at the end of this burst
+        // add it to total, and see where next
+        if proc.io_timer.0 == 0 {
+            proc.io_burst_count.0 += 1;
+            manager.iactive = update_work_status(manager, timer);
+        }
+    }
+}
 
 /* process_oactive
  *    processes the output burst. If the burst reaches 0
@@ -398,4 +415,36 @@ fn process_iactive(proc: &mut Process) {}
  *    stops or moves onto bigger and better things
  *
  * ***************************************************************/
-fn process_oactive(proc: &mut Process) {}
+fn process_oactive(manager: &mut ProcessManager, timer: u32) {
+    // If no process, see if we can load one
+    if manager.oactive.is_none() {
+        // Double check queue is not empty
+        if !(manager.outputq.is_empty()) {
+            if let Some(new_proc) = manager.outputq.pop_front() {
+                manager.oactive = Some(new_proc);
+            } else {
+                return;
+            }
+        }
+    }
+    //
+    // // Double check we have a process
+    if manager.oactive.is_some() {
+        let proc = manager.oactive.as_mut().unwrap();
+
+        if manager.old_active_id == proc.id {
+            return;
+        }
+
+        // Increment cpu total, and decrement work timer
+        proc.io_total.1 += 1;
+        proc.io_timer.1 -= 1;
+
+        // If we are at the end of this burst
+        // add it to total, and see where next
+        if proc.io_timer.1 == 0 {
+            proc.io_burst_count.1 += 1;
+            manager.oactive = update_work_status(manager, timer);
+        }
+    }
+}
