@@ -1,13 +1,17 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 use core::panic;
-use std::collections::{HashMap, VecDeque};
-use std::env;
+use std::collections::VecDeque;
 use std::fs::read_to_string;
 use std::process::exit;
+use std::time::Duration;
+use std::{env, thread};
 
-const IN_USE: usize = 5;
+const IN_USE: u32 = 5;
+const MAX_TIME: u32 = 500;
+const HOW_OFTEN: u32 = 25;
 
+#[derive(Debug, Clone)]
 struct ProcessManager {
     active: Option<Process>,
     iactive: Option<Process>,
@@ -19,6 +23,8 @@ struct ProcessManager {
     cpu_idle_status: bool,
     cpu_idle_time: u32,
     old_active_id: u32,
+    total_terminated: u32,
+    total_wait_time: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -66,8 +72,8 @@ impl Process {
         println!("Name              {0}", self.name);
         println!("Started at time   {0} and ended at time {1}", self.arrival_time, self.end_time);
         println!("Total CPU time    {0} in {1} bursts", self.cpu_total, self.cpu_burst_count);
-        println!("Total Input time  {0} in {1} bursts", self.io_timer.0, self.io_burst_count.0);
-        println!("Total Output time {0} in {1} bursts", self.io_timer.1, self.io_burst_count.1);
+        println!("Total Input time  {0} in {1} bursts", self.io_total.0, self.io_burst_count.0);
+        println!("Total Output time {0} in {1} bursts", self.io_total.1, self.io_burst_count.1);
         println!("Time waiting      {0}", self.wait_time);
     }
 }
@@ -84,9 +90,8 @@ fn main() {
 
     let mut current_id: u32 = 100;
     let mut input_index = 0;
-    let mut proc_index = 0;
 
-    let mut scheduler = ProcessManager {
+    let mut manager = ProcessManager {
         active: None,
         iactive: None,
         oactive: None,
@@ -97,6 +102,8 @@ fn main() {
         cpu_idle_status: false,
         cpu_idle_time: 0,
         old_active_id: 0,
+        total_terminated: 0,
+        total_wait_time: 0,
     };
 
     // Get commandline arguments
@@ -160,32 +167,94 @@ fn main() {
 
         // Create process based on the input strings we gathered
         let proc = create_process(name_and_id[0].clone(), current_id, name_and_id[1].parse().unwrap(), instruction_set);
-        let proc_id = proc.id;
 
         // Push it to entryq
+        manager.entryq.push_back(proc);
 
         // Increment again
         input_index += 2;
-        proc_index += 1;
     }
-    //dump_all_queues(&allqueues);
 
-    // get the process from the queue
-    //let process = match allqueues.entryq.pop_front() {
-    //    Some(proc) => proc,
-    //    None => panic!("REASON"), // Or handle the None case differently
-    //};
+    println!("Simulaation of CPU Scheduling");
 
-    //let new_proc = update_work_status(&mut allqueues, process, 0);
-    //dump_all_queues(&allqueues);
+    load_ready(&mut manager, 0);
 
-    // The logic needs to be as follows
-    // if no active process
-    //      check readyq
-    //      if still no active process
-    //          check entryq
-    //
-    //
+    let mut timer: u32 = 0;
+
+    while timer <= MAX_TIME {
+        let mut copy = manager.clone();
+        if timer % HOW_OFTEN == 0 {
+            println!("Status at time {}", timer);
+
+            if manager.active.is_some() {
+                //println!("Active is {}", manager.active.clone().unwrap().id);
+                manager.active.clone().unwrap().debug_info();
+            } else {
+                println!("Active is 0");
+            }
+
+            if manager.iactive.is_some() {
+                //println!("IActive is {}", manager.iactive.clone().unwrap().id);
+                manager.iactive.clone().unwrap().debug_info();
+            } else {
+                println!("IActive is 0");
+            }
+
+            if manager.oactive.is_some() {
+                //println!("OActive is {}", manager.oactive.clone().unwrap().id);
+                manager.oactive.clone().unwrap().debug_info();
+            } else {
+                println!("OActive is 0");
+            }
+
+            dump_all_queues(copy);
+        }
+
+        process_active(&mut manager, timer);
+        process_iactive(&mut manager, timer);
+        process_oactive(&mut manager, timer);
+
+        copy = manager.clone();
+
+        if manager.entryq.is_empty() && get_total_processes(manager.clone()) == 0 {
+            println!("The run has ended.");
+            println!("The final value of the timer was: {}", timer);
+            println!("The amount of time spent idle was: {}", manager.cpu_idle_time);
+            println!("Number of terminated processes: {}", manager.total_terminated);
+            let avg = manager.total_wait_time / manager.total_terminated;
+            println!("The average waiting time for all terminated processes was: {}", avg);
+            dump_all_queues(copy);
+            return;
+        }
+
+        //println!("{:?}", manager);
+
+        manager.old_active_id = 0;
+
+        timer += 1;
+    }
+}
+
+fn get_total_processes(manager: ProcessManager) -> usize {
+    let mut amount = 0;
+
+    amount += manager.readyq.len();
+    amount += manager.inputq.len();
+    amount += manager.outputq.len();
+
+    if manager.active.is_some() {
+        amount += 1;
+    }
+
+    if manager.iactive.is_some() {
+        amount += 1;
+    }
+
+    if manager.oactive.is_some() {
+        amount += 1;
+    }
+
+    amount
 }
 
 fn create_process(process_name: String, process_id: u32, arrival: u32, instructions: Vec<(String, u32)>) -> Process {
@@ -206,8 +275,21 @@ fn create_process(process_name: String, process_id: u32, arrival: u32, instructi
     }
 }
 
-fn kernel_takeover() -> Process {
-    create_process("KERNEL".to_string(), 0, 0, Vec::new())
+#[rustfmt::skip]
+fn load_ready(manager: &mut ProcessManager, total_proc: u32) {
+    println!("ENTERING LOAD_READY WITH TOTAL PROCESSES = {}", total_proc);
+    let free_space = IN_USE - total_proc;
+    let mut added = 0;
+
+    while added < free_space {
+        if !manager.entryq.is_empty() {
+            manager.readyq.push_back(manager.entryq.pop_front().unwrap());
+
+            added += 1;
+         } else {
+            return
+        }
+    }
 }
 
 // Takes a string, splits it by whitespaces and then
@@ -237,29 +319,12 @@ fn dump_queue(q: VecDeque<Process>, name: String) {
 /* dump_all_queues
  *    Just prints out every queue sequentially
  * **************************************************/
-fn dump_all_queues(queues: ProcessManager) {
-    dump_queue(queues.entryq, "Entry".to_string());
-    dump_queue(queues.readyq, "Ready".to_string());
-    dump_queue(queues.inputq, "Input".to_string());
-    dump_queue(queues.outputq, "Output".to_string());
+fn dump_all_queues(manager: ProcessManager) {
+    dump_queue(manager.entryq, "Entry".to_string());
+    dump_queue(manager.readyq, "Ready".to_string());
+    dump_queue(manager.inputq, "Input".to_string());
+    dump_queue(manager.outputq, "Output".to_string());
 }
-// aivree wrote this --------------------
-enum QueueType {
-    Entry,
-    Ready,
-    Input,
-    Output,
-}
-
-fn test_fn(queue: QueueType) {
-    match queue {
-        QueueType::Entry => todo!(),
-        QueueType::Ready => todo!(),
-        QueueType::Input => todo!(),
-        QueueType::Output => todo!(),
-    }
-}
-// --------------------------------------
 
 /* update_work_status
  *    checks if a process is at the end of its history, and terminates if so.
@@ -269,12 +334,23 @@ r*    if its not, updates the timers for the work to be done, puts it in
  * Args
  *   proc - reference to process
  * ******************************************************************************/
-fn update_work_status(manager: &mut ProcessManager, timer: u32) -> Option<Process> {
-    let proc = manager.active.as_mut().unwrap();
+fn update_work_status(manager: &mut ProcessManager, timer: u32, from: char) -> Option<Process> {
+    let proc;
+
+    if from == 'A' {
+        proc = manager.active.as_mut().unwrap();
+    } else if from == 'I' {
+        proc = manager.iactive.as_mut().unwrap();
+    } else {
+        proc = manager.oactive.as_mut().unwrap();
+    }
+
     if proc.history_index == proc.history.len() - 1 {
         proc.end_time = timer + 1;
         proc.wait_time = (proc.end_time - proc.arrival_time) - proc.cpu_total - proc.io_total.0 - proc.io_total.1;
         proc.terminate();
+        manager.total_terminated += 1;
+        manager.total_wait_time += proc.wait_time;
     } else {
         proc.history_index += 1;
         let new_task = proc.history[proc.history_index].0.clone();
@@ -311,29 +387,29 @@ fn update_work_status(manager: &mut ProcessManager, timer: u32) -> Option<Proces
  * ***************************************************************/
 #[rustfmt::skip]
 fn process_active(manager: &mut ProcessManager, timer: u32) {
-    // Get total process count
-    let mut total_process: usize = manager.readyq.len() + manager.inputq.len() + manager.outputq.len();
-
-    if manager.active.is_some() { total_process += 1; }
-    if manager.iactive.is_some() { total_process += 1; }
-    if manager.oactive.is_some() { total_process += 1; }
-
     // If no process, see if we can load one
     if manager.active.is_none() {
         if manager.readyq.is_empty() {
-            // TODO: load_readyq();
+            load_ready(manager, get_total_processes(manager.clone()) as u32);
         }
         // Double check queue is not empty
         if !(manager.readyq.is_empty()) {
             if let Some(new_proc) = manager.readyq.pop_front() {
                 manager.active = Some(new_proc);
+
+                if let Some(ref mut active_proc) = manager.active.as_mut() {
+                    active_proc.cpu_timer = active_proc.history[active_proc.history_index].1;
+                }
             } else {
                 manager.active = None;
             }
-        } else if !(manager.entryq.is_empty() && (total_process < IN_USE)) {
+        } else if !(manager.entryq.is_empty() && ((get_total_processes(manager.clone()) as u32) < IN_USE)) {
             if let Some(new_proc) = manager.entryq.pop_front() {
-                //proc.unwrap().cpu_timer = proc.unwrap().history[proc.unwrap().history_index].1;
                 manager.active = Some(new_proc);
+
+                if let Some(ref mut active_proc) = manager.active.as_mut() {
+                    active_proc.cpu_timer = active_proc.history[active_proc.history_index].1;
+                }
             } else {
                 manager.active = None;
             }
@@ -355,7 +431,7 @@ fn process_active(manager: &mut ProcessManager, timer: u32) {
         if proc.cpu_timer == 0 {
             proc.cpu_burst_count += 1;
             manager.old_active_id = proc.id;
-            manager.active = update_work_status(manager, timer);
+            manager.active = update_work_status(manager, timer, 'A');
         }
     } else {
         // If no process, add idle time
@@ -404,7 +480,7 @@ fn process_iactive(manager: &mut ProcessManager, timer: u32) {
         // add it to total, and see where next
         if proc.io_timer.0 == 0 {
             proc.io_burst_count.0 += 1;
-            manager.iactive = update_work_status(manager, timer);
+            manager.iactive = update_work_status(manager, timer, 'I');
         }
     }
 }
@@ -444,7 +520,7 @@ fn process_oactive(manager: &mut ProcessManager, timer: u32) {
         // add it to total, and see where next
         if proc.io_timer.1 == 0 {
             proc.io_burst_count.1 += 1;
-            manager.oactive = update_work_status(manager, timer);
+            manager.oactive = update_work_status(manager, timer, 'O');
         }
     }
 }

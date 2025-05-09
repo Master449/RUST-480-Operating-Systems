@@ -1,0 +1,219 @@
+Simulation of CPU Scheduling
+
+Process 101 has moved from the Entry Queue into the Ready Queue at time 0
+
+Process 102 has moved from the Entry Queue into the Ready Queue at time 0
+
+Process 103 has moved from the Entry Queue into the Ready Queue at time 0
+
+Process 104 has moved from the Entry Queue into the Ready Queue at time 0
+
+Status at time 0
+Active is 0
+IActive is 0
+OActive is 0
+Entry Queue Contents: 105 106 107 108 109 110 111 112 
+Ready Queue Contents: 101 102 103 104 
+Input Queue Contents: (Empty)
+Output Queue Contents: (Empty)
+
+Process 105 has moved from the Entry Queue into the Ready Queue at time 19
+
+Status at time 25
+Active is 104
+IActive is 103
+OActive is 101
+Entry Queue Contents: 106 107 108 109 110 111 112 
+Ready Queue Contents: 102 
+Input Queue Contents: 105 
+Output Queue Contents: (Empty)
+
+Process 101 has ended.
+Name              PROGRAMA
+Started at time   0 and ended at time 41
+Total CPU time    15 in 3 bursts
+Total Input Time  8 in 1 bursts
+Total Output Time 8 in 1 bursts
+Time waiting      10
+
+Status at time 50
+Active is 102
+IActive is 104
+OActive is 103
+Entry Queue Contents: 106 107 108 109 110 111 112 
+Ready Queue Contents: 105 
+Input Queue Contents: (Empty)
+Output Queue Contents: (Empty)
+
+Process 102 has ended.
+Name              PROGRAMB
+Started at time   0 and ended at time 53
+Total CPU time    14 in 3 bursts
+Total Input Time  10 in 1 bursts
+Total Output Time 9 in 1 bursts
+Time waiting      20
+
+Status at time 75
+Active is 103
+IActive is 0
+OActive is 104
+Entry Queue Contents: 106 107 108 109 110 111 112 
+Ready Queue Contents: 105 
+Input Queue Contents: (Empty)
+Output Queue Contents: (Empty)
+
+Process 103 has ended.
+Name              PROGRAMC
+Started at time   0 and ended at time 97
+Total CPU time    23 in 4 bursts
+Total Input Time  24 in 2 bursts
+Total Output Time 10 in 1 bursts
+Time waiting      40
+
+Status at time 100
+Active is 105
+IActive is 104
+OActive is 0
+Entry Queue Contents: 106 107 108 109 110 111 112 
+Ready Queue Contents: (Empty)
+Input Queue Contents: (Empty)
+Output Queue Contents: (Empty)
+
+Process 106 has moved from the Entry Queue into the Ready Queue at time 105
+
+Process 107 has moved from the Entry Queue into the Ready Queue at time 105
+
+Process 108 has moved from the Entry Queue into the Ready Queue at time 105
+
+Process 104 has ended.
+Name              LAMBCHOP
+Started at time   0 and ended at time 123
+Total CPU time    30 in 5 bursts
+Total Input Time  19 in 2 bursts
+Total Output Time 15 in 2 bursts
+Time waiting      59
+
+Process 105 has ended.
+Name              BUFFYTVS
+Started at time   19 and ended at time 125
+Total CPU time    28 in 5 bursts
+Total Input Time  18 in 2 bursts
+Total Output Time 17 in 2 bursts
+Time waiting      43
+
+Status at time 125
+Active is 0
+IActive is 107
+OActive is 0
+Entry Queue Contents: 109 110 111 112 
+Ready Queue Contents: 106 
+Input Queue Contents: 108 
+Output Queue Contents: (Empty)
+
+Process 109 has moved from the Entry Queue into the Ready Queue at time 130
+
+Process 110 has moved from the Entry Queue into the Ready Queue at time 130
+
+Process 109 has ended.
+Name              SHORTEST
+Started at time   130 and ended at time 132
+Total CPU time    2 in 1 bursts
+Total Input Time  0 in 0 bursts
+Total Output Time 0 in 0 bursts
+Time waiting      0
+
+Process 111 has moved from the Entry Queue into the Ready Queue at time 134
+
+Status at time 150
+Active is 106
+IActive is 110
+OActive is 0
+Entry Queue Contents: 112 
+Ready Queue Contents: (Empty)
+Input Queue Contents: 111 108 107 
+Output Queue Contents: (Empty)
+
+Process 106 has ended.
+Name              THISPROG
+Started at time   105 and ended at time 152
+Total CPU time    16 in 3 bursts
+Total Input Time  8 in 1 bursts
+Total Output Time 11 in 1 bursts
+Time waiting      12
+
+Process 112 has moved from the Entry Queue into the Ready Queue at time 155
+
+At time 170 Active is 0, so we idle for a while
+
+Status at time 175
+Active is 108
+IActive is 107
+OActive is 0
+Entry Queue Contents: (Empty)
+Ready Queue Contents: 111 
+Input Queue Contents: 112 110 
+Output Queue Contents: (Empty)
+
+Process 107 has ended.
+Name              YOURPROG
+Started at time   105 and ended at time 187
+Total CPU time    17 in 4 bursts
+Total Input Time  16 in 2 bursts
+Total Output Time 9 in 1 bursts
+Time waiting      40
+
+At time 187 Active is 0, so we idle for a while
+
+Status at time 200
+Active is 108
+IActive is 110
+OActive is 112
+Entry Queue Contents: (Empty)
+Ready Queue Contents: (Empty)
+Input Queue Contents: 111 
+Output Queue Contents: (Empty)
+
+Process 108 has ended.
+Name              LOTSOFIO
+Started at time   105 and ended at time 203
+Total CPU time    17 in 4 bursts
+Total Input Time  18 in 2 bursts
+Total Output Time 11 in 1 bursts
+Time waiting      52
+
+Process 110 has ended.
+Name              HEADACHE
+Started at time   130 and ended at time 208
+Total CPU time    14 in 4 bursts
+Total Input Time  20 in 2 bursts
+Total Output Time 8 in 1 bursts
+Time waiting      36
+
+At time 208 Active is 0, so we idle for a while
+
+Process 111 has ended.
+Name              STARTREK
+Started at time   134 and ended at time 210
+Total CPU time    11 in 4 bursts
+Total Input Time  18 in 2 bursts
+Total Output Time 8 in 1 bursts
+Time waiting      39
+
+Process 112 has ended.
+Name              LITTLEIO
+Started at time   155 and ended at time 211
+Total CPU time    20 in 3 bursts
+Total Input Time  11 in 1 bursts
+Total Output Time 11 in 1 bursts
+Time waiting      14
+
+The run has ended.
+The final value of the timer was: 210
+The amount of time spent idle was: 4
+Number of terminated processes: 12
+The average waiting time for all terminated processes was: 30
+Entry Queue Contents: (Empty)
+Ready Queue Contents: (Empty)
+Input Queue Contents: (Empty)
+Output Queue Contents: (Empty)
+
