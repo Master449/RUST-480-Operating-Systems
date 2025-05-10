@@ -1,0 +1,112 @@
+Simulation of CPU Scheduling
+
+Process 101 has moved from the Entry Queue into the Ready Queue at time 0
+
+Process 102 has moved from the Entry Queue into the Ready Queue at time 0
+
+Process 103 has moved from the Entry Queue into the Ready Queue at time 0
+
+Status at time 0
+Active is 0
+IActive is 0
+OActive is 0
+Entry Queue Contents: 104 
+Ready Queue Contents: 101 102 103 
+Input Queue Contents: (Empty)
+Output Queue Contents: (Empty)
+
+Status at time 25
+Active is 101
+IActive is 0
+OActive is 0
+Entry Queue Contents: 104 
+Ready Queue Contents: 102 103 
+Input Queue Contents: (Empty)
+Output Queue Contents: (Empty)
+
+Status at time 50
+Active is 101
+IActive is 0
+OActive is 0
+Entry Queue Contents: 104 
+Ready Queue Contents: 102 103 
+Input Queue Contents: (Empty)
+Output Queue Contents: (Empty)
+
+Process 104 has moved from the Entry Queue into the Ready Queue at time 67
+
+At time 73 Active is 0, so we idle for a while
+
+Status at time 75
+Active is 0
+IActive is 102
+OActive is 0
+Entry Queue Contents: (Empty)
+Ready Queue Contents: 104 
+Input Queue Contents: 103 
+Output Queue Contents: 101 
+
+Process 101 has ended.
+Name              STARWAR
+Started at time   0 and ended at time 93
+Total CPU time    69 in 3 bursts
+Total Input Time  8 in 1 bursts
+Total Output Time 8 in 1 bursts
+Time waiting      8
+
+Status at time 100
+Active is 0
+IActive is 104
+OActive is 103
+Entry Queue Contents: (Empty)
+Ready Queue Contents: 102 
+Input Queue Contents: (Empty)
+Output Queue Contents: (Empty)
+
+Process 102 has ended.
+Name              PIXAR
+Started at time   0 and ended at time 105
+Total CPU time    14 in 3 bursts
+Total Input Time  10 in 1 bursts
+Total Output Time 9 in 1 bursts
+Time waiting      72
+
+Status at time 125
+Active is 104
+IActive is 103
+OActive is 0
+Entry Queue Contents: (Empty)
+Ready Queue Contents: (Empty)
+Input Queue Contents: (Empty)
+Output Queue Contents: (Empty)
+
+At time 131 Active is 0, so we idle for a while
+
+Process 103 has ended.
+Name              DISNEY
+Started at time   0 and ended at time 137
+Total CPU time    23 in 4 bursts
+Total Input Time  24 in 2 bursts
+Total Output Time 10 in 1 bursts
+Time waiting      80
+
+At time 137 Active is 0, so we idle for a while
+
+Process 104 has ended.
+Name              MARVEL
+Started at time   67 and ended at time 145
+Total CPU time    30 in 5 bursts
+Total Input Time  19 in 2 bursts
+Total Output Time 15 in 2 bursts
+Time waiting      14
+
+The run has ended.
+The final value of the timer was: 144
+The amount of time spent idle was: 9
+Number of terminated processes: 4
+The average waiting time for all terminated processes was: 43
+Entry Queue Contents: (Empty)
+Ready Queue Contents: (Empty)
+Input Queue Contents: (Empty)
+Output Queue Contents: (Empty)
+
