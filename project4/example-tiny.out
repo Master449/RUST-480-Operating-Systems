@@ -1,0 +1,62 @@
+Simulation of CPU Scheduling
+
+Process 101 has moved from the Entry Queue into the Ready Queue at time 0
+
+Status at time 0
+Active is 0
+IActive is 0
+OActive is 0
+Entry Queue Contents: (Empty)
+Ready Queue Contents: 101 
+Input Queue Contents: (Empty)
+Output Queue Contents: (Empty)
+
+Status at time 25
+Active is 101
+IActive is 0
+OActive is 0
+Entry Queue Contents: (Empty)
+Ready Queue Contents: (Empty)
+Input Queue Contents: (Empty)
+Output Queue Contents: (Empty)
+
+Status at time 50
+Active is 101
+IActive is 0
+OActive is 0
+Entry Queue Contents: (Empty)
+Ready Queue Contents: (Empty)
+Input Queue Contents: (Empty)
+Output Queue Contents: (Empty)
+
+At time 60 Active is 0, so we idle for a while
+
+At time 72 Active is 0, so we idle for a while
+
+Status at time 75
+Active is 0
+IActive is 0
+OActive is 101
+Entry Queue Contents: (Empty)
+Ready Queue Contents: (Empty)
+Input Queue Contents: (Empty)
+Output Queue Contents: (Empty)
+
+Process 101 has ended.
+Name              STARWAR
+Started at time   0 and ended at time 85
+Total CPU time    69 in 3 bursts
+Total Input Time  8 in 1 bursts
+Total Output Time 8 in 1 bursts
+Time waiting      0
+
+The run has ended.
+The final value of the timer was: 84
+The amount of time spent idle was: 16
+Number of terminated processes: 1
+The average waiting time for all terminated processes was: 0
+Entry Queue Contents: (Empty)
+Ready Queue Contents: (Empty)
+Input Queue Contents: (Empty)
+Output Queue Contents: (Empty)
+

@@ -72,9 +72,9 @@ impl Process {
         println!("Name              {0}", self.name);
         println!("Started at time   {0} and ended at time {1}", self.start_time, self.end_time);
         println!("Total CPU time    {0} in {1} bursts", self.cpu_total, self.cpu_burst_count);
-        println!("Total Input time  {0} in {1} bursts", self.io_total.0, self.io_burst_count.0);
-        println!("Total Output time {0} in {1} bursts", self.io_total.1, self.io_burst_count.1);
-        println!("Time waiting      {0}", self.wait_time);
+        println!("Total Input Time  {0} in {1} bursts", self.io_total.0, self.io_burst_count.0);
+        println!("Total Output Time {0} in {1} bursts", self.io_total.1, self.io_burst_count.1);
+        println!("Time waiting      {0}\n", self.wait_time);
     }
 }
 
@@ -182,7 +182,7 @@ fn main() {
         input_index += 2;
     }
 
-    println!("Simulation of CPU Scheduling");
+    println!("Simulation of CPU Scheduling\n");
 
     let mut timer: u32 = 0;
 
@@ -194,8 +194,8 @@ fn main() {
 
             println!("Status at time {}", timer);
             println!("Active is {}", manager.clone().active.map(|active| active.id).unwrap_or(0));
-            println!("Active is {}", manager.clone().iactive.map(|iactive| iactive.id).unwrap_or(0));
-            println!("Active is {}", manager.clone().oactive.map(|oactive| oactive.id).unwrap_or(0));
+            println!("IActive is {}", manager.clone().iactive.map(|iactive| iactive.id).unwrap_or(0));
+            println!("OActive is {}", manager.clone().oactive.map(|oactive| oactive.id).unwrap_or(0));
 
             dump_all_queues(copy);
         }
@@ -278,6 +278,7 @@ fn load_ready(manager: &mut ProcessManager, total_proc: u32, timer: u32) {
                     proc.start_time = timer;
                     manager.readyq.push_back(proc.clone());
                     added += 1;
+                    println!("Process {} has moved from the Entry Queue into the Ready Queue at time {}\n", proc.id, timer);
                 }
             }
             added += 1;
@@ -319,6 +320,7 @@ fn dump_all_queues(manager: ProcessManager) {
     dump_queue(manager.readyq, "Ready".to_string());
     dump_queue(manager.inputq, "Input".to_string());
     dump_queue(manager.outputq, "Output".to_string());
+    println!();
 }
 
 /* update_work_status
@@ -441,7 +443,7 @@ fn process_active(manager: &mut ProcessManager, timer: u32) {
 
         // Flag is so we only print once when we start idling
         if manager.cpu_idle_status {
-            println!("At time {timer} Active is 0, so we idle for a while");
+            println!("At time {timer} Active is 0, so we idle for a while\n");
             manager.cpu_idle_status = false;
         }
     }
