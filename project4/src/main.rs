@@ -31,6 +31,7 @@ struct Process {
     name: String,
     id: u32,
     arrival_time: u32,
+    start_time: u32,
     history: Vec<(String, u32)>,
     history_index: usize,
     cpu_timer: u32,
@@ -69,7 +70,7 @@ impl Process {
     fn terminate(&self) {
         println!("Process {0} has ended.", self.id);
         println!("Name              {0}", self.name);
-        println!("Started at time   {0} and ended at time {1}", self.arrival_time, self.end_time);
+        println!("Started at time   {0} and ended at time {1}", self.start_time, self.end_time);
         println!("Total CPU time    {0} in {1} bursts", self.cpu_total, self.cpu_burst_count);
         println!("Total Input time  {0} in {1} bursts", self.io_total.0, self.io_burst_count.0);
         println!("Total Output time {0} in {1} bursts", self.io_total.1, self.io_burst_count.1);
@@ -84,6 +85,7 @@ impl Process {
 *
 * Current solution: program 0, would be named kernel, logic check ID / name
 *******************************************************************************/
+#[rustfmt::skip]
 fn main() {
     const DEBUG_FLAG: bool = true;
 
@@ -180,37 +182,20 @@ fn main() {
         input_index += 2;
     }
 
-    println!("Simulaation of CPU Scheduling");
-
-    load_ready(&mut manager, 0);
+    println!("Simulation of CPU Scheduling");
 
     let mut timer: u32 = 0;
+
+    load_ready(&mut manager, 0, timer);
 
     while timer <= MAX_TIME {
         let mut copy = manager.clone();
         if timer % HOW_OFTEN == 0 {
+
             println!("Status at time {}", timer);
-
-            if let Some(active_proc) = &manager.active {
-                println!("Active is {}", active_proc.id);
-                //active.debug_info();
-            } else {
-                println!("Active is 0");
-            }
-
-            if let Some(iactive_proc) = &manager.iactive {
-                println!("IActive is {}", iactive_proc.id);
-                //iactive.debug_info();
-            } else {
-                println!("IActive is 0");
-            }
-
-            if let Some(oactive_proc) = &manager.oactive {
-                println!("OActive is {}", oactive_proc.id);
-                //oactive.debug_info();
-            } else {
-                println!("OActive is 0");
-            }
+            println!("Active is {}", manager.clone().active.map(|active| active.id).unwrap_or(0));
+            println!("Active is {}", manager.clone().iactive.map(|iactive| iactive.id).unwrap_or(0));
+            println!("Active is {}", manager.clone().oactive.map(|oactive| oactive.id).unwrap_or(0));
 
             dump_all_queues(copy);
         }
@@ -267,6 +252,7 @@ fn create_process(process_name: String, process_id: u32, arrival: u32, instructi
         name: process_name,
         id: process_id,
         arrival_time: arrival,
+        start_time: 0,
         history: instructions,
         history_index: 0,
         cpu_timer: 0,
@@ -281,15 +267,18 @@ fn create_process(process_name: String, process_id: u32, arrival: u32, instructi
 }
 
 #[rustfmt::skip]
-fn load_ready(manager: &mut ProcessManager, total_proc: u32) {
+fn load_ready(manager: &mut ProcessManager, total_proc: u32, timer: u32) {
     let free_space = IN_USE - total_proc;
     let mut added = 0;
 
     while added < free_space {
         if !manager.entryq.is_empty() {
-            if let Some(proc) = manager.entryq.pop_front() {
-                manager.readyq.push_back(proc);
-                added += 1;
+            if let Some(proc) = manager.entryq.pop_front().as_mut() {
+                if proc.arrival_time <= timer {
+                    proc.start_time = timer;
+                    manager.readyq.push_back(proc.clone());
+                    added += 1;
+                }
             }
             added += 1;
          } else {
@@ -359,7 +348,7 @@ fn update_work_status(manager: &mut ProcessManager, timer: u32, from: char) -> O
 
     if proc.history_index == proc.history.len() - 1 {
         proc.end_time = timer + 1;
-        proc.wait_time = (proc.end_time - proc.arrival_time) - proc.cpu_total - proc.io_total.0 - proc.io_total.1;
+        proc.wait_time = (proc.end_time - proc.start_time) - proc.cpu_total - proc.io_total.0 - proc.io_total.1;
         proc.terminate();
         manager.total_terminated += 1;
         manager.total_wait_time += proc.wait_time;
@@ -402,7 +391,7 @@ fn process_active(manager: &mut ProcessManager, timer: u32) {
     // If no process, see if we can load one
     if manager.active.is_none() {
         if manager.readyq.is_empty() {
-            load_ready(manager, get_total_processes(manager.clone()) as u32);
+            load_ready(manager, get_total_processes(manager.clone()) as u32, timer);
         }
         // Double check queue is not empty
         if !(manager.readyq.is_empty()) {
