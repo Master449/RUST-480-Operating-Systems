@@ -324,16 +324,17 @@ fn dump_all_queues(manager: ProcessManager) {
 }
 
 /* update_work_status
- *    checks if a process is at the end of its history, and terminates if so.
-r*    if its not, updates the timers for the work to be done, puts it in
- *    the correct queue for processing, and prints out the change.
- *
- * Args
- *   proc - reference to process
- * ******************************************************************************/
+*    checks if a process is at the end of its history, and terminates if so.
+*    if its not, updates the timers for the work to be done, puts it in
+*    the correct queue for processing, and prints out the change.
+*
+*    @Args
+*
+******************************************************************************/
 fn update_work_status(manager: &mut ProcessManager, timer: u32, from: char) -> Option<Process> {
     let proc;
 
+    // Check where this program just came from
     let active_manager = if from == 'A' {
         &mut manager.active
     } else if from == 'I' {
@@ -342,19 +343,23 @@ fn update_work_status(manager: &mut ProcessManager, timer: u32, from: char) -> O
         &mut manager.oactive
     };
 
+    // Check to make sure the process exists again, as it is an Option<_>
     if let Some(tmp) = active_manager.as_mut() {
         proc = tmp;
     } else {
         panic!("Came from process_active, but the active process is not there!");
     }
 
+    // If we are at the end of the programs history
     if proc.history_index == proc.history.len() - 1 {
+        // Update the processes statistics, and terminate
         proc.end_time = timer + 1;
         proc.wait_time = (proc.end_time - proc.start_time) - proc.cpu_total - proc.io_total.0 - proc.io_total.1;
         proc.terminate();
         manager.total_terminated += 1;
         manager.total_wait_time += proc.wait_time;
     } else {
+        // Otherwise it needs a new place to go
         proc.history_index += 1;
         let new_task = proc.history[proc.history_index].0.clone();
 
@@ -378,6 +383,7 @@ fn update_work_status(manager: &mut ProcessManager, timer: u32, from: char) -> O
         }
     }
 
+    // Return none, as the return will take the place of the origin caller process
     None
 }
 
